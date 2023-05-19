@@ -4,27 +4,14 @@
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
-macro bind(def, element)
-    quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
-        local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
-        el
-    end
-end
-
 # ╔═╡ 51872f1f-c761-48e5-bbaf-c2052263e241
 using CSV, OrdinaryDiffEq, GLMakie, DataFrames, PlutoUI
 
 # ╔═╡ 97fc06b5-afe5-40fd-85d4-26a1da72abc5
-using SciMLSensitivity, Optimization, ForwardDiff, OptimizationPolyalgorithms, OptimizationOptimJL
+using SciMLSensitivity, Optimization, ForwardDiff, OptimizationOptimJL
 
 # ╔═╡ 234dd51e-de1f-4f39-8504-07e6c8425658
 using OptimizationOptimisers
-
-# ╔═╡ 00adbd12-160f-4e85-8fec-36370624447e
-using OptimizationBBO
 
 # ╔═╡ 5fea3212-532a-4e6a-aaa4-dfd3828fef40
 using OptimizationNLopt
@@ -36,9 +23,8 @@ html"""
 		main {
 			margin: 0 auto;
 			max-width: 2000px;
-    		padding-left: max(283px, 10%);
-    		padding-right: max(383px, 10%); 
-            # 383px to accomodate TableOfContents(aside=true)
+    		padding-left: max(283px, 5%);
+    		padding-right: max(283px, 5%); 
 		}
 	}
 </style>
@@ -47,11 +33,16 @@ html"""
 # ╔═╡ 0dc162c4-c206-4bad-a84b-065cbe398d8e
 md"""
 # Parameter fitting for differential equations
+
+We consider again the FitzHugh-Nagumo equation. Our aim is to find parameters fitting to **real data**!
 """
 
 # ╔═╡ 6013d355-fcf1-4c17-8a39-cd46150f158a
 md"Data extracted from Figure 1: 
 Peter C Petersen, Rune W Berg (2016) _Lognormal firing rate distribution reveals prominent fluctuation–driven regime in spinal motor networks_ eLife 5:e18805."
+
+# ╔═╡ 28aa1f88-ea61-42ce-8888-172e8cbd5c3e
+md"### Step 1: Get the data."
 
 # ╔═╡ 7a8b3c79-eb68-49a8-bc9e-1726eb0159fa
 begin 
@@ -63,13 +54,13 @@ begin
 end
 
 # ╔═╡ d8509ef2-d89d-4b18-a6aa-bd1471873a3f
-scatter(data.t, data.v)
+scatter(data.t, data.v, markersize = 6, figure = (resolution = (800, 300),))
 
 # ╔═╡ a1e24d29-bb15-4ef8-b668-64e77b8fdbb0
 
 
 # ╔═╡ e4614143-ea7e-49f0-8125-8c2ddfcbf805
-md"### Definition of the ODE (as before)"
+md"### Step 2: Definition of the `ODEProblem` (as before)"
 
 # ╔═╡ 5ace1136-50b8-40b8-bc18-fe953d4e2887
 begin
@@ -102,39 +93,109 @@ sol = solve(fitzHugh, Tsit5(), p = [0.01, 0.1, 0.1, 0.5]);
 
 # ╔═╡ a8d2db24-3f42-48c0-9a26-5f831b75173a
 let
-	fig = Figure()
+	fig = Figure(resolution = (800, 300))
 	ax = Axis(fig[1,1])
-
-	lines!(sol.t, sol[1,:])
-	lines!(data.t, data.v)
+	scatter!(data.t, data.v, markersize = 8)
+	lines!(sol.t, sol[1,:], color = :gray, linewidth = 2)
 	
 	fig
 end
 
+# ╔═╡ 95851433-ecfb-4a38-807e-d8008a3e1fe5
+
+
+# ╔═╡ fa23d498-5c50-44ba-a957-80c10445ce4c
+
+
+# ╔═╡ 37ea1ba4-0bf8-47c9-8006-312b2d63b382
+md"""### Step 3: Perform parameter fitting
+
+The principle idea is to consider the map
+```math
+\text{loss}: \text{parameters} \mapsto \Vert \text{solution of the ODE} - \text{data} \Vert^2.
+```
+
+Then, we want to **minimize** the loss function.
+
+#### Typical challenges:
+
+- Data is no perfect fit to model $\rightarrow$ the perfect parameters do not exist!
+- Local optimization often insufficient. Need global optimizers.
+- Runtime of evaluation of the `loss` function is critical for good optimization.
+"""
+
+# ╔═╡ e45b4830-a2ce-42bb-905a-480aaa0786c0
+md"""
+Useful packages:
+- `SciMLSensitivity, ForwardDiff`: computes gradients of solutions of ODEs
+- `Optimization`: defines the `OptimizationProblem` type.
+"""
+
+# ╔═╡ 1893d3de-3efb-4c35-b868-f87c9f350cd2
+md"""#### Step 3.1: Preparation for the `loss` function
+
+For real data, this is often the most tedious task!
+
+- Our goal is to optimize the parameters $\alpha, \gamma, I_{\text{app}}$.
+"""
+
 # ╔═╡ f8f6cd88-ffbc-4545-953e-7da8f8a47e24
 function create_ode_params(opt_params)
-	ode_params = [p[1]; max.(0.001, opt_params[1:3])]
+	# convert parameters which should be optimized into parameters for the ODE
+	ode_params = (p[1], max.(0.001, opt_params[1:3])...)  
 	return ode_params
 end
 
-# ╔═╡ 619c6267-03ec-4b8d-8ebe-a9d8acafdfe8
-function loss(opt_params)
-	ode_params = create_ode_params(opt_params)
-	
-	sol = solve(fitzHugh, Tsit5(), p = ode_params, saveat = data.t)
+# ╔═╡ 98456461-a40b-483c-90d8-6a0696796cab
 
-	if sol.retcode != ReturnCode.Success 
-		return Inf64
-	end
 
+# ╔═╡ 87625b03-a00f-4a15-8965-8ce8f8331f07
+md"
+Just the Euclidean norm $\Vert \text{sol} - \text{data} \Vert^2$ is not enough. 
+
+The following function computes the distance between the graphs:
+"
+
+# ╔═╡ 5120a399-071a-4f79-9662-f136a966ed59
+function compute_distance(data, sol)
 	error = 0.0
 	for i in eachindex(sol.t)
 		pt = (sol.t[i], sol[1,i])
 		error += minimum( j -> (data.t[j] - pt[1])^2 + (data.v[j] - pt[2])^2, eachindex(data.t) )
 	end
-	
 	return error
 end
+
+# ╔═╡ 1d6c7195-3c7f-416b-a4ba-9ef1d6d25d8b
+
+
+# ╔═╡ 42dc87b2-5977-4c5f-95b3-dee00d1c368c
+
+
+# ╔═╡ 619c6267-03ec-4b8d-8ebe-a9d8acafdfe8
+function loss(opt_params)
+
+	# solve ODE
+	ode_params = create_ode_params(opt_params)
+	sol = solve(fitzHugh, Tsit5(), p = ode_params, saveat = data.t)
+
+	# check if solving the ODE was possible
+	if sol.retcode != ReturnCode.Success 
+		return Inf64
+	end
+
+	# compute distance to data
+	return compute_distance(data, sol)
+end
+
+# ╔═╡ 07ece82c-cc6f-4f93-9d39-70806adb0cc1
+
+
+# ╔═╡ 44d3ddc5-68e9-49d8-a02d-b3cc69780fc5
+
+
+# ╔═╡ 5335b5b1-09d6-43a7-94c0-ee707f1ffff1
+
 
 # ╔═╡ 10c46309-31ed-49ae-8414-a754de37e0d6
 begin 
@@ -142,20 +203,64 @@ begin
 	optf = Optimization.OptimizationFunction((x, p) -> loss(x), adtype)
 end
 
+# ╔═╡ d0cb8782-2e77-4861-8cdb-ec67386e9158
+
+
+# ╔═╡ 4c67aa18-5b0a-424e-bada-302a40419055
+
+
+# ╔═╡ 46f65b4c-6f9c-4ea0-bf96-91dcce4c2f72
+
+
+# ╔═╡ 125971a4-b43a-4a16-9f18-bc87624ded75
+md"### Example: Now we can compute $\frac{d\, \text{loss}}{d t}$!"
+
+# ╔═╡ 354f39a9-e10c-42ce-b4d3-1385465ab865
+ForwardDiff.gradient( loss, [0.01, 0.01, 0.1])
+
+# ╔═╡ 149e7480-6926-4d9f-8017-ee1519798e3e
+
+
+# ╔═╡ 6a079b67-5bb7-4fca-8952-dd51947af84e
+
+
+# ╔═╡ 0511836c-8efb-44fd-91b4-3d3a4874e2ed
+md"""#### Step 3.3: Define `OptimizationProblem`
+
+This is similar to the `ODEProblem`.
+"""
+
 # ╔═╡ ea1cc45b-eee8-4f13-8dd3-e3cbb620b83c
-opt_prob = Optimization.OptimizationProblem( optf, [0.1, 0.1, 0.1], lb = [0.01, 0.001, 0.0], ub = [1.0, 1.0, 2.0] ) #p[2:4]) #; lb = [0.001, 0.01, 0.01], ub = [1.0, 1.0, 4.0] )
+opt_prob = Optimization.OptimizationProblem(optf, [0.01, 0.01, 0.1], lb = [0.0, 0.0, 0.0], ub = [0.5, 0.5, 1.0] )
+
+# ╔═╡ c4390edc-903a-41a5-8e40-b741fba0615c
+
+
+# ╔═╡ 066b7824-1ab4-4157-8cd0-9e3bf8d2d6ec
+
+
+# ╔═╡ ec79a466-f5ee-44e4-bf04-dd2ae3a510c4
+md"#### Solve!"
 
 # ╔═╡ 800b99d5-38cd-4a1f-baf2-0aa577a0053b
-opt_res = solve(opt_prob, SAMIN(), maxiters = 1000, maxtime = 60)
+opt_res = solve(opt_prob, GradientDescent(), maxiters = 1000, maxtime = 30)
+#opt_res = solve(opt_prob, NLopt.GN_DIRECT(), maxiters = 1000, maxtime = 60)
+#opt_res = solve(opt_prob, NLopt.G_MLSL(), local_method = NLopt.LD_LBFGS(), local_maxiters = 20, maxiters = 1000, maxtime = 60)
+
+# ╔═╡ c650baee-598d-497e-9e03-a610d9ad73ac
+
+
+# ╔═╡ 9005dadb-6bc8-4bcd-b044-027251c3f16e
+md"### The results:"
 
 # ╔═╡ 7de30f3b-e9cb-420d-b6b7-dc34695eb8e0
-opt_res.u
+( α = opt_res.u[1], γ = opt_res.u[2], I_app = opt_res.u[3])
 
 # ╔═╡ 2864789b-68b7-4e4e-8daf-77c81a88e1bb
-opt_res.objective
+md"**Loss** = $(opt_res.objective)"
 
 # ╔═╡ a45a555a-5701-4c0f-9f4a-a49c35733b6b
-fitted_sol = solve(fitzHugh, Tsit5(), p = create_ode_params( opt_res.u ))
+fitted_sol = solve(fitzHugh, Tsit5(), p = create_ode_params( opt_res.u ));
 
 # ╔═╡ 5e7f26c3-bf0a-4528-9ab8-e31619a58573
 let
@@ -169,23 +274,6 @@ let
 	fig
 end
 
-# ╔═╡ 6216e914-0156-4f65-97c3-960ec7d95285
-p
-
-# ╔═╡ 78798f17-9083-4c5c-ba91-0bd17c057642
-priors = [
-	truncated( Normal(0.01,0.01), lower = 0.0),
-	truncated( Normal(0.02,1.0), lower = 0.0),
-	truncated( Normal(0.3,1.0), lower = 0.0),
-	truncated( Normal(0.4,1.0), lower = 0.0),
-]
-
-# ╔═╡ 8c0335b8-40be-4a47-9f71-eff7bfde3eda
-@bind z PlutoUI.Slider( LinRange(0.001,2, 200), default = 1.0)
-
-# ╔═╡ 7b9b4e3e-9f27-4e1d-ba77-3caa13b20f26
-@bind y PlutoUI.Slider( LinRange(0.001,2, 200), default = 1.0)
-
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -194,12 +282,11 @@ DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
-OptimizationBBO = "3e6eede4-6085-4f62-9a71-46d9bc1eb92b"
 OptimizationNLopt = "4e6fcdb7-1186-4e1f-a706-475e75c168bb"
 OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
 OptimizationOptimisers = "42dfb2eb-d2b4-4451-abcd-913932933ac1"
-OptimizationPolyalgorithms = "500b13db-7e66-49ce-bda4-eed966be6282"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 SciMLSensitivity = "1ed8b502-d754-442c-8d5d-10ac956f44a1"
 
 [compat]
@@ -208,12 +295,11 @@ DataFrames = "~1.5.0"
 ForwardDiff = "~0.10.35"
 GLMakie = "~0.8.5"
 Optimization = "~3.14.1"
-OptimizationBBO = "~0.1.4"
 OptimizationNLopt = "~0.1.5"
 OptimizationOptimJL = "~0.1.8"
 OptimizationOptimisers = "~0.1.2"
-OptimizationPolyalgorithms = "~0.1.1"
 OrdinaryDiffEq = "~6.51.2"
+PlutoUI = "~0.7.51"
 SciMLSensitivity = "~7.31.0"
 """
 
@@ -223,7 +309,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.0-rc1"
 manifest_format = "2.0"
-project_hash = "3e2799df39298741096fd1ff35b04b877433423d"
+project_hash = "ddac95daa73b28a73250e08448d7a99b8ee0e4ac"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -234,6 +320,12 @@ weakdeps = ["ChainRulesCore"]
 
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
+
+[[deps.AbstractPlutoDingetjes]]
+deps = ["Pkg"]
+git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.1.4"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "faa260e4cb5aba097a73fab382dd4b5819d8ec8c"
@@ -330,22 +422,11 @@ git-tree-sha1 = "d9a9701b899b30332bbcb3e1679c41cce81fb0e8"
 uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 version = "1.3.2"
 
-[[deps.BitFlags]]
-git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
-uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
-version = "0.1.7"
-
 [[deps.BitTwiddlingConvenienceFunctions]]
 deps = ["Static"]
 git-tree-sha1 = "0c5f81f47bbbcf4aea7b2959135713459170798b"
 uuid = "62783981-4cbd-42fc-bca8-16325de8dc4b"
 version = "0.1.5"
-
-[[deps.BlackBoxOptim]]
-deps = ["CPUTime", "Compat", "Distributed", "Distributions", "HTTP", "JSON", "LinearAlgebra", "Printf", "Random", "SpatialIndexing", "StatsBase"]
-git-tree-sha1 = "136079f37e3514ec691926093924b591a8842f5d"
-uuid = "a134a8b2-14d6-55f6-9291-3336d3ab0209"
-version = "0.6.2"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -363,11 +444,6 @@ deps = ["CpuId", "IfElse", "Static"]
 git-tree-sha1 = "2c144ddb46b552f72d7eafe7cc2f50746e41ea21"
 uuid = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
 version = "0.2.2"
-
-[[deps.CPUTime]]
-git-tree-sha1 = "2dcc50ea6a0a1ef6440d6eecd0fe3813e5671f45"
-uuid = "a9c8d775-2e2e-55fc-8582-045d282d599e"
-version = "1.0.0"
 
 [[deps.CRC32c]]
 uuid = "8bf52ea8-c179-5cab-976a-9e18b702a9bc"
@@ -480,12 +556,6 @@ weakdeps = ["Dates", "LinearAlgebra"]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.0.2+0"
-
-[[deps.ConcurrentUtilities]]
-deps = ["Serialization", "Sockets"]
-git-tree-sha1 = "96d823b94ba8d187a6d8f0826e731195a74b90e9"
-uuid = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
-version = "2.2.0"
 
 [[deps.ConsoleProgressMonitor]]
 deps = ["Logging", "ProgressMeter"]
@@ -936,12 +1006,6 @@ git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
 uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
 version = "1.0.2"
 
-[[deps.HTTP]]
-deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
-git-tree-sha1 = "41f7dfb2b20e7e8bf64f6b6fae98f4d2df027b06"
-uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "1.9.4"
-
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
 git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
@@ -959,6 +1023,24 @@ deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
 git-tree-sha1 = "84204eae2dd237500835990bcade263e27674a93"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.16"
+
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "8d511d5b81240fc8e6802386302675bdf47737b9"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.4"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "c47c5fa4c5308f27ccaac35504858d8914e102f9"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "0.9.4"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "d75853a0bdbfb1ac815478bacd89cd27b550ace6"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.2.3"
 
 [[deps.IRTools]]
 deps = ["InteractiveUtils", "MacroTools", "Test"]
@@ -1321,6 +1403,11 @@ weakdeps = ["ChainRulesCore", "ForwardDiff", "SpecialFunctions"]
     ForwardDiffExt = ["ChainRulesCore", "ForwardDiff"]
     SpecialFunctionsExt = "SpecialFunctions"
 
+[[deps.MIMEs]]
+git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "0.1.4"
+
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
 git-tree-sha1 = "2ce8695e1e699b68702c03402672a69f54b8aca9"
@@ -1381,12 +1468,6 @@ deps = ["AbstractTrees", "Automa", "DataStructures", "FreeTypeAbstraction", "Geo
 git-tree-sha1 = "8f52dbaa1351ce4cb847d95568cb29e62a307d93"
 uuid = "0a4f8689-d25c-4efe-a92b-7142dfc1aa53"
 version = "0.5.6"
-
-[[deps.MbedTLS]]
-deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
-git-tree-sha1 = "03a9b9718f5682ecb107ac9f7308991db4ce395b"
-uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "1.1.7"
 
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1544,12 +1625,6 @@ deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.1+0"
 
-[[deps.OpenSSL]]
-deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
-git-tree-sha1 = "51901a49222b09e3743c65b8847687ae5fc78eb2"
-uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
-version = "1.4.1"
-
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "9ff31d101d987eb9d66bd8b176ac7c277beccd09"
@@ -1580,12 +1655,6 @@ git-tree-sha1 = "82ffb0d292601b9b64a1a03e043f79536d9d243c"
 uuid = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 version = "3.14.1"
 
-[[deps.OptimizationBBO]]
-deps = ["BlackBoxOptim", "Optimization", "Reexport"]
-git-tree-sha1 = "5f653f29459f2aba3c1961dff265b727bd1ed5be"
-uuid = "3e6eede4-6085-4f62-9a71-46d9bc1eb92b"
-version = "0.1.4"
-
 [[deps.OptimizationNLopt]]
 deps = ["NLopt", "Optimization", "Reexport"]
 git-tree-sha1 = "10d58c91cde18c6c576f6559d546d7c94971fa47"
@@ -1603,12 +1672,6 @@ deps = ["Optimisers", "Optimization", "Printf", "ProgressLogging", "Reexport"]
 git-tree-sha1 = "133ef3f9529e6cdd6d7668490dd144de56675bcc"
 uuid = "42dfb2eb-d2b4-4451-abcd-913932933ac1"
 version = "0.1.2"
-
-[[deps.OptimizationPolyalgorithms]]
-deps = ["Optimization", "OptimizationOptimJL", "OptimizationOptimisers", "Reexport"]
-git-tree-sha1 = "0bdce4ae9ffbdb7f685fd7c0c252f74e6230f66a"
-uuid = "500b13db-7e66-49ce-bda4-eed966be6282"
-version = "0.1.1"
 
 [[deps.Opus_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1690,6 +1753,12 @@ deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random"
 git-tree-sha1 = "f92e1315dadf8c46561fb9396e525f7200cdc227"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.3.5"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "b478a748be27bd2f2c73a7690da219d0844db305"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.51"
 
 [[deps.PoissonRandom]]
 deps = ["Random"]
@@ -2008,11 +2077,6 @@ git-tree-sha1 = "d263a08ec505853a5ff1c1ebde2070419e3f28e9"
 uuid = "73760f76-fbc4-59ce-8f25-708e95d2df96"
 version = "0.4.0"
 
-[[deps.SimpleBufferStream]]
-git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
-uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
-version = "1.1.0"
-
 [[deps.SimpleNonlinearSolve]]
 deps = ["ArrayInterface", "DiffEqBase", "FiniteDiff", "ForwardDiff", "LinearAlgebra", "Reexport", "Requires", "SciMLBase", "SnoopPrecompile", "StaticArraysCore"]
 git-tree-sha1 = "54c78ac3cc0343a16785adabe5bbf4063c737967"
@@ -2070,11 +2134,6 @@ deps = ["Libdl", "LinearAlgebra", "Logging", "OffsetArrays", "Printf", "SparseAr
 git-tree-sha1 = "342cf4b449c299d8d1ceaf00b7a49f4fbc7940e7"
 uuid = "e56a9233-b9d6-4f03-8d0f-1825330902ac"
 version = "0.3.9"
-
-[[deps.SpatialIndexing]]
-git-tree-sha1 = "bacf5065cd7c0d6449b8bba6fa8e75b3087356b0"
-uuid = "d4ead438-fe20-5cc5-a293-4fd39a41b74c"
-version = "0.1.5"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
@@ -2554,32 +2613,54 @@ version = "3.5.0+0"
 
 # ╔═╡ Cell order:
 # ╟─022d6cce-f58a-11ed-21b3-a38bb9218a65
-# ╠═0dc162c4-c206-4bad-a84b-065cbe398d8e
-# ╠═51872f1f-c761-48e5-bbaf-c2052263e241
+# ╟─51872f1f-c761-48e5-bbaf-c2052263e241
+# ╟─0dc162c4-c206-4bad-a84b-065cbe398d8e
 # ╟─6013d355-fcf1-4c17-8a39-cd46150f158a
+# ╟─28aa1f88-ea61-42ce-8888-172e8cbd5c3e
 # ╠═7a8b3c79-eb68-49a8-bc9e-1726eb0159fa
 # ╠═d8509ef2-d89d-4b18-a6aa-bd1471873a3f
-# ╠═a1e24d29-bb15-4ef8-b668-64e77b8fdbb0
+# ╟─a1e24d29-bb15-4ef8-b668-64e77b8fdbb0
 # ╟─e4614143-ea7e-49f0-8125-8c2ddfcbf805
 # ╠═5ace1136-50b8-40b8-bc18-fe953d4e2887
 # ╠═cd31123e-1727-4793-acf0-dc4c241b3326
-# ╠═a8d2db24-3f42-48c0-9a26-5f831b75173a
+# ╟─a8d2db24-3f42-48c0-9a26-5f831b75173a
+# ╟─95851433-ecfb-4a38-807e-d8008a3e1fe5
+# ╟─fa23d498-5c50-44ba-a957-80c10445ce4c
+# ╟─37ea1ba4-0bf8-47c9-8006-312b2d63b382
+# ╟─e45b4830-a2ce-42bb-905a-480aaa0786c0
 # ╠═97fc06b5-afe5-40fd-85d4-26a1da72abc5
+# ╟─1893d3de-3efb-4c35-b868-f87c9f350cd2
 # ╠═f8f6cd88-ffbc-4545-953e-7da8f8a47e24
+# ╟─98456461-a40b-483c-90d8-6a0696796cab
+# ╟─87625b03-a00f-4a15-8965-8ce8f8331f07
+# ╠═5120a399-071a-4f79-9662-f136a966ed59
+# ╟─1d6c7195-3c7f-416b-a4ba-9ef1d6d25d8b
+# ╟─42dc87b2-5977-4c5f-95b3-dee00d1c368c
 # ╠═619c6267-03ec-4b8d-8ebe-a9d8acafdfe8
+# ╟─07ece82c-cc6f-4f93-9d39-70806adb0cc1
+# ╟─44d3ddc5-68e9-49d8-a02d-b3cc69780fc5
+# ╟─5335b5b1-09d6-43a7-94c0-ee707f1ffff1
 # ╠═10c46309-31ed-49ae-8414-a754de37e0d6
+# ╟─d0cb8782-2e77-4861-8cdb-ec67386e9158
+# ╟─4c67aa18-5b0a-424e-bada-302a40419055
+# ╟─46f65b4c-6f9c-4ea0-bf96-91dcce4c2f72
+# ╟─125971a4-b43a-4a16-9f18-bc87624ded75
+# ╠═354f39a9-e10c-42ce-b4d3-1385465ab865
+# ╟─149e7480-6926-4d9f-8017-ee1519798e3e
+# ╟─6a079b67-5bb7-4fca-8952-dd51947af84e
+# ╟─0511836c-8efb-44fd-91b4-3d3a4874e2ed
 # ╠═ea1cc45b-eee8-4f13-8dd3-e3cbb620b83c
 # ╠═234dd51e-de1f-4f39-8504-07e6c8425658
-# ╠═00adbd12-160f-4e85-8fec-36370624447e
 # ╠═5fea3212-532a-4e6a-aaa4-dfd3828fef40
-# ╠═800b99d5-38cd-4a1f-baf2-0aa577a0053b
-# ╠═7de30f3b-e9cb-420d-b6b7-dc34695eb8e0
-# ╠═2864789b-68b7-4e4e-8daf-77c81a88e1bb
+# ╟─c4390edc-903a-41a5-8e40-b741fba0615c
+# ╟─066b7824-1ab4-4157-8cd0-9e3bf8d2d6ec
+# ╟─ec79a466-f5ee-44e4-bf04-dd2ae3a510c4
+# ╟─800b99d5-38cd-4a1f-baf2-0aa577a0053b
+# ╟─c650baee-598d-497e-9e03-a610d9ad73ac
+# ╟─9005dadb-6bc8-4bcd-b044-027251c3f16e
+# ╟─7de30f3b-e9cb-420d-b6b7-dc34695eb8e0
+# ╟─2864789b-68b7-4e4e-8daf-77c81a88e1bb
 # ╠═a45a555a-5701-4c0f-9f4a-a49c35733b6b
 # ╠═5e7f26c3-bf0a-4528-9ab8-e31619a58573
-# ╠═6216e914-0156-4f65-97c3-960ec7d95285
-# ╠═78798f17-9083-4c5c-ba91-0bd17c057642
-# ╠═8c0335b8-40be-4a47-9f71-eff7bfde3eda
-# ╠═7b9b4e3e-9f27-4e1d-ba77-3caa13b20f26
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

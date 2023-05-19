@@ -4,16 +4,6 @@
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
-macro bind(def, element)
-    quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
-        local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
-        el
-    end
-end
-
 # ╔═╡ 615a9c87-0412-4f7c-bde0-5d0b300c405b
 begin
 	using WGLMakie
@@ -104,52 +94,22 @@ md"""
 #### First step: Prepare!
 """
 
+# ╔═╡ 9e83e218-a93e-4990-8027-9102c4802fda
+
+
 # ╔═╡ 6589fcfe-ff57-4235-90cc-06e67eef7c0e
 md"""
 #### Second step: Simulate!
 """
 
+# ╔═╡ b5107b68-3acb-4348-af3c-a6654b524fee
+
+
 # ╔═╡ 56eb3ab4-8b45-44c4-bec3-2a58ab8897be
 md"""#### Last step: Plot!"""
 
-# ╔═╡ a711b424-67cd-4b68-b65c-91d9fda31cb3
-@bind m PlutoUI.Slider(1:1000)
-
-# ╔═╡ 9e83e218-a93e-4990-8027-9102c4802fda
-begin 
-	dt = 0.1  		# time-step size  		(Float64)
-	D = 0.1 		# diffusion constant  	(Float64)
-	t_end = 10.0  	# terminal time   		(Float64)
-
-	x_init = [0.0, 0.0, 0.0]  	# initial condition. 		(Vector{Float64})
-
-	n = round(Int64, t_end / dt)   # number of steps 	(Int64)
-	sol = zeros(3, m, n)              # solution array     (Matrix{Float64}) 
-
-	sol[:, :, 1] .= x_init     # write initial data in first column of sol
-
-	(x_init, dt, n, sol)   # show output     			(Tuple{Vector{Float64}, Float64, Int64, Matrix{Float64}})
-end
-
-# ╔═╡ b5107b68-3acb-4348-af3c-a6654b524fee
-Threads.@threads for j in 1:m
-	for i in 2:n
-		sol[:,j,i] = sol[:,j,i-1] + sqrt(dt) * D * randn(3) 
-	end
-end
-
 # ╔═╡ 8d53ab7b-61b6-403c-b026-440305380749
-begin 
-	f = Figure()
-	ax = Axis3(f[1,1])
-	xlims!(ax, -1,1)
-	ylims!(ax, -1,1)
-	
-	for i in 1:m
-		lines!(sol[1,i,:], sol[2,i,:], sol[3,i,:], color = (:green, 0.6), linewidth = 1.)
-	end
-	f
-end
+
 
 # ╔═╡ 9a93a955-2014-4001-8ca3-27e06f01fec2
 
@@ -223,16 +183,28 @@ md"""
 """
 
 # ╔═╡ f0383258-bc13-40f9-b2e1-d3917307e716
+# ╠═╡ disabled = true
+#=╠═╡
 typeof(sol)
+  ╠═╡ =#
 
 # ╔═╡ 4f6d69f1-d4e8-4b73-a084-afa13de7fc39
+# ╠═╡ disabled = true
+#=╠═╡
 typeof(x_init)
+  ╠═╡ =#
 
 # ╔═╡ b885ea81-7e0b-4eab-96e2-2a6f686d7f7c
+# ╠═╡ disabled = true
+#=╠═╡
 typeof(dt)
+  ╠═╡ =#
 
 # ╔═╡ 3ba6ded0-10ac-4837-b1be-959af34a97e4
+# ╠═╡ disabled = true
+#=╠═╡
 typeof(n)
+  ╠═╡ =#
 
 # ╔═╡ 60d822fc-2bdd-4ab0-a670-c02df7f52186
 md""" How to make a matrix? """
@@ -1748,7 +1720,7 @@ version = "3.5.0+0"
 # ╔═╡ Cell order:
 # ╟─4b1415c2-f543-11ed-2f0c-bbf99f6b732a
 # ╟─615a9c87-0412-4f7c-bde0-5d0b300c405b
-# ╠═8c7a7fe0-2073-48bb-9f21-5b57c845cb2e
+# ╟─8c7a7fe0-2073-48bb-9f21-5b57c845cb2e
 # ╟─785e41e1-9d14-48f4-b6da-6ba2ca67b044
 # ╟─fb25887b-1810-41a2-b7ce-d5eb71e41838
 # ╟─3c4a9e22-de6f-48e2-98d3-e6ea66225bdc
@@ -1759,7 +1731,6 @@ version = "3.5.0+0"
 # ╟─6589fcfe-ff57-4235-90cc-06e67eef7c0e
 # ╠═b5107b68-3acb-4348-af3c-a6654b524fee
 # ╟─56eb3ab4-8b45-44c4-bec3-2a58ab8897be
-# ╠═a711b424-67cd-4b68-b65c-91d9fda31cb3
 # ╠═8d53ab7b-61b6-403c-b026-440305380749
 # ╟─9a93a955-2014-4001-8ca3-27e06f01fec2
 # ╟─f8bb5e95-a143-4401-a6af-f0c5dd6064cc
