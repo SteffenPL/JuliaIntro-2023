@@ -4,6 +4,16 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+end
+
 # ╔═╡ d936e88e-cb65-44cd-972c-3cfd0d6a22b6
 using GLMakie
 
@@ -59,6 +69,15 @@ We will use the Julia package `OrdinaryDiffEq`.
 > - In Pluto, installation happens automatically 😇
 """
 
+# ╔═╡ 9835863d-591c-4332-89e2-499c6324c895
+ode_1 = ODEProblem(  (x,p,t) -> -0.1 * x,   [1.0],  [0, 10],   nothing   )
+
+# ╔═╡ cdd42094-d77f-4e5e-9fae-9fd5237e37d4
+sol_1 = solve(ode_1, Heun(), abstol = 1e-10, reltol = 1e-10)
+
+# ╔═╡ 68207f8f-7601-4879-ab4b-f15f56fdee0c
+scatter(  sol_1.t,   sol_1[1, :]  )
+
 # ╔═╡ 8de5d2b4-3f18-4921-ad77-ebd25a23a9d5
 
 
@@ -106,14 +125,22 @@ Let's simulate this equation for $\alpha = 0.1, \gamma = 0.5, \varepsilon = 0.01
 Biologyically, $v$ could represent membrane voltage or a neuron, $w$ represents sodium channel reactivation and potassium channel deactivation after stimulation by an external input $I_{\text{app}}$.
 """
 
+# ╔═╡ 7464cad6-5fc1-4dba-bb07-9a81487943b7
+f(v, α) = v*(1-v)*(v-α)
+
 # ╔═╡ 7fe7aa81-03be-4d9f-98fc-64fa528c6adf
 function rhs!(du, u, p, t)
-
-	du[1] = 0
-	du[2] = 0
+	(; ε, α, γ, I_app) = p
+	(v, w) = u
+	
+	du[1] = 1/ε * ( f(v, α) - w + I_app )
+	du[2] = (v - γ * w)
 
 	return du
 end
+
+# ╔═╡ 06de5b43-22dd-4a4c-bb1e-d9959e64ca69
+@bind val PlutoUI.Slider( LinRange(0, 2, 100))
 
 # ╔═╡ f9d553b1-dc18-4c7e-972f-13743422ba22
 begin
@@ -124,7 +151,7 @@ begin
 		ε = 0.01,
 		α = 0.1,
 		γ = 0.5,
-		I_app = 0.2
+		I_app = 0.2 * val
 	)
 
 	fitzHugh = ODEProblem(rhs!, u0, tspan, p)
@@ -133,13 +160,24 @@ end
 # ╔═╡ 8c09a34e-c85f-437d-835c-f24afa385a3f
 fh_sol = solve(fitzHugh, Heun());
 
+# ╔═╡ 81650b4e-3a2f-4d1b-bf94-185d8942dd80
+val
+
 # ╔═╡ f0785b60-6260-44d0-8088-50db4e1a64b2
 begin
 	fig = Figure()
-	ax = Axis(fig[1,1])
+	ax = Axis(fig[1:2,1])
 
 	lines!( fh_sol[2,:], fh_sol[1, :])
 	limits!(ax, -0.1, 0.8, -1, 1.5)
+
+	
+	ax = Axis(fig[1,2])
+	lines!( fh_sol.t, fh_sol[1,:])
+
+	
+	ax = Axis(fig[2,2])
+	lines!( fh_sol.t, fh_sol[2,:])
 	
 	fig
 end
@@ -2058,14 +2096,20 @@ version = "3.5.0+0"
 # ╟─19687775-3e0e-4721-ad93-5779bca5daf7
 # ╟─0890d203-33ec-4929-8704-c7b2b44a87b9
 # ╠═6661a5c4-c3de-4c22-b53a-8acda687d53e
+# ╠═9835863d-591c-4332-89e2-499c6324c895
+# ╠═cdd42094-d77f-4e5e-9fae-9fd5237e37d4
+# ╠═68207f8f-7601-4879-ab4b-f15f56fdee0c
 # ╟─8de5d2b4-3f18-4921-ad77-ebd25a23a9d5
 # ╟─9573c745-dfb9-45b5-b1a1-e07439601572
 # ╟─46793e8e-a0f8-40a6-a2ff-efcfba6db7a2
 # ╟─b5b21209-926d-4bfa-80a7-8d0e37afa16a
 # ╟─df1c7d38-d0bc-456a-8e8c-2a50090716f2
+# ╠═7464cad6-5fc1-4dba-bb07-9a81487943b7
 # ╠═7fe7aa81-03be-4d9f-98fc-64fa528c6adf
 # ╠═f9d553b1-dc18-4c7e-972f-13743422ba22
 # ╠═8c09a34e-c85f-437d-835c-f24afa385a3f
+# ╠═81650b4e-3a2f-4d1b-bf94-185d8942dd80
+# ╠═06de5b43-22dd-4a4c-bb1e-d9959e64ca69
 # ╠═f0785b60-6260-44d0-8088-50db4e1a64b2
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

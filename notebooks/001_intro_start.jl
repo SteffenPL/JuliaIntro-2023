@@ -94,22 +94,59 @@ md"""
 #### First step: Prepare!
 """
 
-# ╔═╡ 9e83e218-a93e-4990-8027-9102c4802fda
-
-
 # ╔═╡ 6589fcfe-ff57-4235-90cc-06e67eef7c0e
 md"""
 #### Second step: Simulate!
 """
 
-# ╔═╡ b5107b68-3acb-4348-af3c-a6654b524fee
+# ╔═╡ c7764e6b-885d-4897-9133-decc95b215ad
+Threads.nthreads()
 
+# ╔═╡ e8190459-d288-4de6-9a68-109359e72b87
+m = 1_00
+
+# ╔═╡ 9e83e218-a93e-4990-8027-9102c4802fda
+begin
+	dt = 0.001
+	t_end = 10
+
+	x_init = [0.0, 0.2]
+	n = round(Int64, t_end / dt)
+
+	sol = zeros(2, m, n)
+	sol[:, :, 1] .= x_init
+
+	D = 0.01
+
+	sol
+end
+
+# ╔═╡ 310852be-a2c6-4d81-a642-d8a8e2078858
+m
+
+# ╔═╡ b5107b68-3acb-4348-af3c-a6654b524fee
+Threads.@threads for k in 1:m
+	for i in 2:n
+		sol[:,k,i] = sol[:,k,i-1] + sqrt(dt) * D * randn(2)
+	end
+end
 
 # ╔═╡ 56eb3ab4-8b45-44c4-bec3-2a58ab8897be
 md"""#### Last step: Plot!"""
 
 # ╔═╡ 8d53ab7b-61b6-403c-b026-440305380749
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	fig = Figure()
+	ax = Axis(fig[1,1])
 
+	for k in 1:m
+		lines!( sol[1,k, :], sol[2,k,:], color = (:green, 0.1) )
+	end
+	fig
+end
+  ╠═╡ =#
 
 # ╔═╡ 9a93a955-2014-4001-8ca3-27e06f01fec2
 
@@ -149,7 +186,11 @@ For example, let's consider this function:
 
 # ╔═╡ 7af591fd-5f95-438c-b693-22cebd0b80e3
 function add(a, b)
-	return a+b
+	c = 0.0
+	for k in 1:8
+		c += a+b
+	end
+	return c
 end
 
 # ╔═╡ f469d3fc-67ca-415c-beb0-fa88b75f2b5f
@@ -1729,7 +1770,10 @@ version = "3.5.0+0"
 # ╟─f9e3b720-97f7-4e9a-9d02-c65bedf81a07
 # ╠═9e83e218-a93e-4990-8027-9102c4802fda
 # ╟─6589fcfe-ff57-4235-90cc-06e67eef7c0e
+# ╠═310852be-a2c6-4d81-a642-d8a8e2078858
+# ╠═c7764e6b-885d-4897-9133-decc95b215ad
 # ╠═b5107b68-3acb-4348-af3c-a6654b524fee
+# ╠═e8190459-d288-4de6-9a68-109359e72b87
 # ╟─56eb3ab4-8b45-44c4-bec3-2a58ab8897be
 # ╠═8d53ab7b-61b6-403c-b026-440305380749
 # ╟─9a93a955-2014-4001-8ca3-27e06f01fec2

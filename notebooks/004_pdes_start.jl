@@ -102,6 +102,9 @@ begin
 	heatmap(u0)
 end
 
+# ╔═╡ 53841e2e-27fe-49b6-a307-f6d75d92a3b5
+n*m * n*m
+
 # ╔═╡ 9679c190-10b3-4c07-a232-6b0e80182641
 md"""
 ### Matrix free linear operators
@@ -129,6 +132,9 @@ end
 L = FunctionOperator(laplace!, zeros(n,m); 
                         p = p, 
                         islinear = true)
+
+# ╔═╡ 2c349d33-6182-4dc9-a10e-f7a5aaf78d61
+heatmap( L * u0 )
 
 # ╔═╡ 49f5c4f6-9908-4a06-abb0-50654f7c0b75
 md"Let's create some initial conditions."
@@ -198,7 +204,7 @@ md"""
 
 A good numerical method is the **implicit-explicit** Euler method:
 ```math
-U^{k+1} - U^{k} = \Delta t ( L U^{k+1} + R(U^{k}) )
+U^{k+1} - U^{k} = \Delta t ( L U^{k+1} + R(U^{k+1}) )
 ```
 
 """
@@ -233,7 +239,7 @@ We can tell Julia to treat different parts of an ODE either implicit or explicit
 prob = SplitODEProblem(L, reaction_terms, u0, tspan, p);
 
 # ╔═╡ b4b3571d-ce53-4e98-987b-669c6b1fdc54
-sol = solve(prob, IMEXEuler(), dt = 0.1);
+sol = solve(prob, IMEXEuler(), dt = 10.0);
 
 # ╔═╡ 9faa838a-069e-4d2d-b8f3-5f94ac6119c7
 md"""
@@ -251,7 +257,13 @@ md"#### Step 3: Plot solution"
 # ╔═╡ 19fa95b8-e66e-4912-9981-ac33ee690e31
 heatmap(sol[:, :, idx])
 
+# ╔═╡ 7cd7dff5-8177-4751-b1b7-38eb342b3df1
+
+
 # ╔═╡ aadd3f3b-faaf-4a0a-9a51-e4e2d9844684
+
+
+# ╔═╡ 32428d11-a330-4320-8aa8-edfac7ff96ed
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2172,9 +2184,11 @@ version = "3.5.0+0"
 # ╟─14a2c559-2eae-4873-b2e0-3730b1c7f8fb
 # ╟─ecc302dc-6c94-439e-8b49-9af3ead6aa91
 # ╠═86307ab0-a991-42d8-a1b3-9dd5694dd7ac
+# ╠═53841e2e-27fe-49b6-a307-f6d75d92a3b5
 # ╟─9679c190-10b3-4c07-a232-6b0e80182641
 # ╠═ec22801f-19e9-41ef-80ee-9885c4c16fa7
 # ╠═0b0f4bb8-c381-4135-8324-167d056700e4
+# ╠═2c349d33-6182-4dc9-a10e-f7a5aaf78d61
 # ╟─49f5c4f6-9908-4a06-abb0-50654f7c0b75
 # ╟─ddee2da5-61ba-4751-ba2c-3a205f41ee6a
 # ╟─a0663340-13a7-4b9e-b316-88f59b9223b6
@@ -2201,6 +2215,8 @@ version = "3.5.0+0"
 # ╟─15b0ef85-2557-4a62-a0a1-374e19a42c1b
 # ╠═4e63ea55-d4fd-4562-a476-851e110e1d2c
 # ╠═19fa95b8-e66e-4912-9981-ac33ee690e31
+# ╟─7cd7dff5-8177-4751-b1b7-38eb342b3df1
 # ╟─aadd3f3b-faaf-4a0a-9a51-e4e2d9844684
+# ╠═32428d11-a330-4320-8aa8-edfac7ff96ed
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
